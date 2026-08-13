@@ -14,13 +14,13 @@ en cualquier agente compatible (Claude Code, Cursor, Codex, OpenCode, y más).
 
 ```bash
 # Todas las skills, a Claude Code
-npx skills add <owner>/apigen-skill --skill '*' -a claude-code
+npx skills add apiaddicts/apigen-skills --skill '*' -a claude-code
 
 # Interactivo (elegís skills y agentes)
-npx skills add <owner>/apigen-skill
+npx skills add apiaddicts/apigen-skills
 
 # Desde una copia local (por ejemplo, mientras se prueba antes de publicar)
-npx skills add ./apigen-skill
+npx skills add ./apigen-skills
 ```
 
 ## Skills incluidas
@@ -48,7 +48,11 @@ Flujo típico: `apigen-openapi-enrich` (si el spec es nuevo) →
 
 ## Origen
 
-Estas skills se desarrollaron y probaron dentro del repo
-[apiaddicts/apigen.net](https://github.com/apiaddicts/apigen.net)
-(`.claude/skills/`) y se portaron aquí como paquete independiente e
-instalable, sin depender de tener ese repo clonado.
+Estas skills se desarrollaron y probaron para la presentación
+[«Genera microservicios profesionales en .NET con agentes en metodología API First»](https://www.youtube.com/watch?v=BoA7h7mYHk8),
+donde se muestra su uso en vivo.
+
+Automatizan [`apigen.net`](https://github.com/apiaddicts/apigen.net), el
+generador de proyectos .NET (arquitectura hexagonal) a partir de OpenAPI —
+otro repositorio de la organización [apiaddicts](https://github.com/apiaddicts).
+Estas skills no lo reemplazan: instalan/invocan su CLI o su REST API.
