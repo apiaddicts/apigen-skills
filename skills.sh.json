@@ -1,0 +1,16 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "ApiGen",
+      "description": "Skills para generar, validar y enriquecer proyectos .NET hexagonales a partir de OpenAPI usando ApiGen (apiaddicts/apigen.net).",
+      "skills": [
+        "apigen-cli",
+        "apigen-api",
+        "apigen-openapi-check",
+        "apigen-openapi-enrich"
+      ]
+    }
+  ]
+}
