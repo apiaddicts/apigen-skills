@@ -16,7 +16,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $py = Get-Command python -ErrorAction SilentlyContinue
 if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
 if (-not $py) {
-    Write-Error "No se encontro python/python3 en el PATH. Este validador requiere Python 3 + PyYAML (pip install pyyaml)."
+    Write-Error "python/python3 not found in PATH. This validator requires Python 3 + PyYAML (pip install pyyaml)."
     exit 2
 }
 

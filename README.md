@@ -1,58 +1,59 @@
 # Apigen skills
 
-Skills de agente para [ApiGen](https://github.com/apiaddicts/apigen.net) —
-el generador de proyectos .NET (arquitectura hexagonal) a partir de
-definiciones OpenAPI. Estas skills **no reemplazan** a `apigen.net`, lo
-automatizan: instalan/invocan su CLI o su REST API, validan que un OpenAPI
-tenga lo que el generador realmente necesita, y ayudan a completar specs
-nuevos con las extensiones `x-apigen-*` correctas.
+Agent skills for [ApiGen](https://github.com/apiaddicts/apigen.net) —
+the .NET project generator (hexagonal architecture) from OpenAPI
+definitions. These skills **do not replace** `apigen.net`, they
+automate it: they install/invoke its CLI or its REST API, validate that an
+OpenAPI spec has what the generator actually needs, and help complete new
+specs with the correct `x-apigen-*` extensions.
 
-Empaquetado para instalarse con [`npx skills`](https://github.com/vercel-labs/skills)
-en cualquier agente compatible (Claude Code, Cursor, Codex, OpenCode, y más).
+Packaged to be installed with [`npx skills`](https://github.com/vercel-labs/skills)
+on any compatible agent (Claude Code, Cursor, Codex, OpenCode, and more).
 
-## Instalación
+## Installation
 
 ```bash
-# Todas las skills, a Claude Code
+# All skills, to Claude Code
 npx skills add apiaddicts/apigen-skills --skill '*' -a claude-code
 
-# Interactivo (elegís skills y agentes)
+# Interactive (pick skills and agents)
 npx skills add apiaddicts/apigen-skills
 
-# Desde una copia local (por ejemplo, mientras se prueba antes de publicar)
+# From a local copy (for example, while testing before publishing)
 npx skills add ./apigen-skills
 ```
 
-## Skills incluidas
+## Included skills
 
-| Skill | Qué hace |
+| Skill | What it does |
 |---|---|
-| [`apigen-cli`](skills/apigen-cli) | Instala (si hace falta) y ejecuta el CLI `apigen` para generar un proyecto .NET hexagonal desde un OpenAPI. |
-| [`apigen-api`](skills/apigen-api) | Genera el proyecto llamando a la REST API de ApiGen (`POST /generator/file`) en vez del CLI local — útil sin CLI instalado o contra una instancia ya desplegada. Trae bundleados `scripts/apigen-api.sh` / `.ps1`. |
-| [`apigen-openapi-check`](skills/apigen-openapi-check) | Valida de forma determinista (script Python, no juicio del modelo) que un OpenAPI tenga las propiedades `x-apigen-*` que el generador realmente lee, antes de invocar el CLI o la API. Trae bundleado `scripts/apigen_openapi_check.py`. |
-| [`apigen-openapi-enrich`](skills/apigen-openapi-enrich) | Redacta y agrega las extensiones `x-apigen-*` faltantes en un OpenAPI nuevo o incompleto, traduciendo el vocabulario estándar de OpenAPI al de ApiGen. |
+| [`apigen-cli`](skills/apigen-cli) | Installs (if needed) and runs the `apigen` CLI to generate a hexagonal .NET project from an OpenAPI spec. |
+| [`apigen-api`](skills/apigen-api) | Generates the project by calling the ApiGen REST API (`POST /generator/file`) instead of the local CLI — useful without the CLI installed or against an already deployed instance. Bundles `scripts/apigen-api.sh` / `.ps1`. |
+| [`apigen-openapi-check`](skills/apigen-openapi-check) | Deterministically validates (Python script, not model judgment) that an OpenAPI spec has the `x-apigen-*` properties the generator actually reads, before invoking the CLI or the API. Bundles `scripts/apigen_openapi_check.py`. |
+| [`apigen-openapi-enrich`](skills/apigen-openapi-enrich) | Drafts and adds the missing `x-apigen-*` extensions to a new or incomplete OpenAPI spec, translating standard OpenAPI vocabulary into ApiGen's. |
 
-Flujo típico: `apigen-openapi-enrich` (si el spec es nuevo) →
-`apigen-openapi-check` (validar) → `apigen-cli` o `apigen-api` (generar).
+Typical flow: `apigen-openapi-enrich` (if the spec is new) →
+`apigen-openapi-check` (validate) → `apigen-cli` or `apigen-api` (generate).
 
-## Dependencias externas por skill
+## External dependencies per skill
 
-- `apigen-cli`: requiere poder instalar el CLI `apigen` (instalador oficial
-  de apigen.net, o `dotnet tool` si ya hay SDK de .NET).
-- `apigen-api`: requiere una `APIGEN_API_KEY` (nunca se guarda en el repo,
-  siempre variable de entorno) y la URL del endpoint desplegado
-  (`APIGEN_API_URL` o `--url`/`-Url`) — no hay endpoint default.
-- `apigen-openapi-check` / `apigen-openapi-enrich` (indirectamente, vía
-  check): requieren Python 3, y PyYAML si el spec a validar es YAML
+- `apigen-cli`: requires being able to install the `apigen` CLI (official
+  apigen.net installer, or `dotnet tool` if the .NET SDK is already present).
+- `apigen-api`: requires an `APIGEN_API_KEY` (never stored in the repo,
+  always an environment variable) and the URL of the deployed endpoint
+  (`APIGEN_API_URL` or `--url`/`-Url`) — there is no default endpoint.
+- `apigen-openapi-check` / `apigen-openapi-enrich` (indirectly, via
+  check): require Python 3, plus PyYAML if the spec to validate is YAML
   (`pip install pyyaml`).
 
-## Origen
+## Origin
 
-Estas skills se desarrollaron y probaron para la presentación
-[«Genera microservicios profesionales en .NET con agentes en metodología API First»](https://www.youtube.com/watch?v=BoA7h7mYHk8),
-donde se muestra su uso en vivo.
+These skills were developed and tested for the talk
+[«Genera microservicios profesionales en .NET con agentes en metodología API First»](https://www.youtube.com/watch?v=BoA7h7mYHk8)
+(“Generate professional .NET microservices with agents using an API First methodology”, in Spanish),
+where their use is shown live.
 
-Automatizan [`apigen.net`](https://github.com/apiaddicts/apigen.net), el
-generador de proyectos .NET (arquitectura hexagonal) a partir de OpenAPI —
-otro repositorio de la organización [apiaddicts](https://github.com/apiaddicts).
-Estas skills no lo reemplazan: instalan/invocan su CLI o su REST API.
+They automate [`apigen.net`](https://github.com/apiaddicts/apigen.net), the
+.NET project generator (hexagonal architecture) from OpenAPI —
+another repository of the [apiaddicts](https://github.com/apiaddicts) organization.
+These skills do not replace it: they install/invoke its CLI or its REST API.

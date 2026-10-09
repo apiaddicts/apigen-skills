@@ -4,7 +4,7 @@
   "groupings": [
     {
       "title": "ApiGen",
-      "description": "Skills para generar, validar y enriquecer proyectos .NET hexagonales a partir de OpenAPI usando ApiGen (apiaddicts/apigen.net).",
+      "description": "Skills to generate, validate and enrich hexagonal .NET projects from OpenAPI using ApiGen (apiaddicts/apigen.net).",
       "skills": [
         "apigen-cli",
         "apigen-api",

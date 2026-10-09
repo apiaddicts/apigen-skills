@@ -1,153 +1,153 @@
 ---
 name: apigen-openapi-check
 description: >
-  Valida que un OpenAPI tenga las propiedades x-apigen-* que el generador de
-  ApiGen realmente necesita (no lo que los specs de ejemplo sugieren) antes
-  de invocar el CLI o la REST API. Corre el script determinista
-  scripts/apigen_openapi_check.py (bundleado con esta skill, vía
-  apigen-openapi-check.sh/.ps1) y reporta hallazgos críticos (revientan el
-  generador), advertencias (degradan el resultado en silencio) e
-  informativos (propiedades decorativas que el generador nunca lee). Usar
-  cuando el usuario pida "valida mi OpenAPI para apigen", "qué propiedades
-  necesita mi spec", "revisa las extensiones x-apigen", "por qué mi proyecto
-  generado salió mal/incompleto", o antes de generar con las skills
-  apigen-cli / apigen-api.
+  Validates that an OpenAPI spec has the x-apigen-* properties that the ApiGen
+  generator actually needs (not what the example specs suggest) before
+  invoking the CLI or the REST API. Runs the deterministic script
+  scripts/apigen_openapi_check.py (bundled with this skill, via
+  apigen-openapi-check.sh/.ps1) and reports critical findings (they break the
+  generator), warnings (they silently degrade the result) and
+  info findings (decorative properties the generator never reads). Use
+  when the user asks "validate my OpenAPI for apigen", "what properties
+  does my spec need", "check the x-apigen extensions", "why did my generated
+  project come out wrong/incomplete", or before generating with the
+  apigen-cli / apigen-api skills.
 ---
 
 # ApiGen OpenAPI Check Skill
 
-Valida un spec OpenAPI contra lo que el generador de ApiGen (`apigen.net`,
-repo `src/Generator`) **realmente lee**, no contra lo que los specs de
-ejemplo del repo (algunos usan claves decorativas que el generador ignora)
-sugieren que hace falta.
+Validates an OpenAPI spec against what the ApiGen generator (`apigen.net`,
+repo `src/Generator`) **actually reads**, not against what the repo's example
+specs (some use decorative keys the generator ignores)
+suggest is needed.
 
-**Alcance — solo valida, no genera.** Esta skill no instala ni invoca el
-CLI/REST API. Una vez el reporte esté limpio (o el usuario acepte los
-hallazgos no críticos), remite a `apigen-cli` (CLI) o `apigen-api` (REST)
-para ejecutar la generación.
+**Scope — validation only, no generation.** This skill does not install or
+invoke the CLI/REST API. Once the report is clean (or the user accepts the
+non-critical findings), hand off to `apigen-cli` (CLI) or `apigen-api` (REST)
+to run the generation.
 
 ---
 
-## Dónde vive el script de esta skill
+## Where this skill's script lives
 
-Esta skill trae bundleados `scripts/apigen-openapi-check.sh`,
-`scripts/apigen-openapi-check.ps1` y `scripts/apigen_openapi_check.py`
-**junto a este mismo `SKILL.md`**. Una vez instalada con `npx skills add`,
-quedan en la carpeta propia de la skill según el agente usado, por ejemplo:
+This skill bundles `scripts/apigen-openapi-check.sh`,
+`scripts/apigen-openapi-check.ps1` and `scripts/apigen_openapi_check.py`
+**next to this very `SKILL.md`**. Once installed with `npx skills add`,
+they end up in the skill's own folder depending on the agent used, for example:
 - Claude Code: `.claude/skills/apigen-openapi-check/scripts/`
-- Otros agentes soportados por el CLI `skills`: `<carpeta-de-skills-del-agente>/apigen-openapi-check/scripts/`
+- Other agents supported by the `skills` CLI: `<agent-skills-folder>/apigen-openapi-check/scripts/`
 
-Si no conocés la ruta exacta en el proyecto actual, ubicala con:
+If you don't know the exact path in the current project, locate it with:
 ```bash
 find . -path '*apigen-openapi-check/scripts/apigen-openapi-check.sh'
 ```
 ```powershell
 Get-ChildItem -Recurse -Filter apigen-openapi-check.ps1
 ```
-En los ejemplos de abajo, `<ruta-a-esta-skill>` es esa carpeta (ej.
-`.claude/skills/apigen-openapi-check`). Los wrappers `.sh`/`.ps1` resuelven
-su propia carpeta internamente para encontrar `apigen_openapi_check.py`, así
-que basta con invocarlos por su ruta — no hace falta `cd` a ningún lado.
+In the examples below, `<path-to-this-skill>` is that folder (e.g.
+`.claude/skills/apigen-openapi-check`). The `.sh`/`.ps1` wrappers resolve
+their own folder internally to find `apigen_openapi_check.py`, so
+just invoke them by their path — no need to `cd` anywhere.
 
 ---
 
-## Por qué existe esta skill
+## Why this skill exists
 
-El parseo de OpenAPI de ApiGen (`FileUtils.ReadOpenApi`) **no es una puerta
-dura**: los errores del parser solo se loguean (`Diagnostic OpenApi ~
-{"Errors":[...]}`), la generación sigue igual. Y varias propiedades
-`x-apigen-*` que aparecen en los specs de ejemplo del repo (`petstore.json`,
-`api-hospital.yml`, `Petstore with Owners-enriched.yaml`) **no las lee
-ningún generador** — son decorativas. Esta skill es la única puerta real
-antes de generar.
-
----
-
-## Tabla de verdad — qué lee el generador realmente
-
-### `x-apigen-project` (raíz del documento)
-
-| Propiedad | Estado | Consecuencia si falta/está mal |
-|---|---|---|
-| `data-driver` | Única propiedad funcional | Ausente o valor distinto de `postgresql`/`mysql` → cae silenciosamente a persistencia in-memory |
-| `name`, `description`, `version`, `java-properties` | **Decorativas, nunca leídas** | El nombre/descripción reales del proyecto salen de `info.title`/`info.description` del OpenAPI estándar, no de aquí |
-
-### `x-apigen-models` (bajo `components`, junto a `schemas`)
-
-| Propiedad | Estado | Consecuencia si falta/está mal |
-|---|---|---|
-| La extensión completa | **Requerida** | Ausente por completo → el generador produce una entidad placeholder `"Sample"` bogus (repositorio, servicio, DbSet incluidos) en vez de tus entidades reales — sin error |
-| `<Entidad>.attributes` | Requerida para tener propiedades | Ausente/vacía → la clase se genera sin propiedades |
-| `attributes[].name` (estilo lista) | **Requerida** | Falta → `NullReferenceException` al generar |
-| `attributes[].type` (ambos estilos) | **Requerida** | Falta → `NullReferenceException`/`InvalidCastException` al generar |
-| `attributes[].items-type` | Opcional, para `type: Array`/`Relation` | Es la **única** clave que controla el tipo del elemento — ver siguiente fila |
-| `attributes[].ref-model` / `.is-array` / `.items-ref-model` / `.relation-type` / `.validations` | **Decorativas, nunca leídas** | Usa `items-type` en su lugar para arrays/relaciones — estas claves se ignoran en silencio aunque aparezcan en los specs de ejemplo |
-| `attributes[].relational-persistence.primary-key: true` | Única clave que marca la PK | Sin ella, no se genera `[Key]`/autogenerado |
-| `attributes[].relational-persistence.autogenerated` | **Decorativa, nunca leída** | Solo `primary-key: true` importa, este valor se ignora |
-| `attributes[].relational-persistence.column` | Opcional | Si difiere del nombre de la propiedad, se trata como FK |
-| `attributes[].relational-persistence.relation-type` / `.join-column` / `.referenced-column` / `.join-table` / `.inverse-join-column` | **Decorativas, nunca leídas** | Presentes en varios specs de ejemplo, no consumidas por ningún generador |
-| FK cuya entidad referenciada usa `attributes` en estilo **mapa** | Riesgo silencioso | La resolución del tipo de la FK solo funciona si la entidad referenciada usa estilo **lista**; en mapa cae a `long?` sin avisar |
-
-### `x-apigen-mapping` (en el schema del DTO)
-
-| Propiedad | Estado | Consecuencia si falta/está mal |
-|---|---|---|
-| `model` | Requerida para que el DTO tenga mapeo | Ausente → no se genera `CreateMap<Dto, Entity>` para ese DTO (sin error) |
-| Valor de `model` no existe en `x-apigen-models` | Error silencioso al generar | El mapeo generado referencia una entidad inexistente |
-
-### `x-apigen-binding` (en el `path`)
-
-| Propiedad | Estado | Consecuencia si falta/está mal |
-|---|---|---|
-| La extensión en un path | Opcional pero recomendada | Ausente → el endpoint se genera como stub `NotImplementedException`, no CRUD real |
-| `model` | Requerida cuando se usa `x-apigen-binding` | Ausente, o valor que no existe en `x-apigen-models` → el controller generado referencia un servicio inexistente → **el proyecto no compila** (`dotnet build` falla), un paso después de donde el usuario esperaría el error |
-
-### Campos OpenAPI estándar (no `x-apigen-*`) que ApiGen también exige
-
-| Propiedad | Estado | Consecuencia si falta/está mal |
-|---|---|---|
-| `paths.<path>.<método>.operationId` | **Requerida en toda operación** | Ausente → `ArgumentNullException` en `Humanizer.Pascalize` al generar el controller (`ControllersGenerator.DefineEndpointMethod`) — **confirmado ejecutando el CLI directamente**, no es teórico. No es una extensión `x-apigen-*`, es un campo OpenAPI estándar que la mayoría de editores no marcan como obligatorio, por eso es fácil de omitir en un spec nuevo. |
-| `tags` (arreglo a nivel raíz del documento) | **Requerido si 2+ operaciones comparten un tag** | Si un nombre de tag (ej. `books`) se usa en varias operaciones **solo de forma inline** (`operation.tags: [books]`) y nunca se declara en el arreglo `tags:` de la raíz, el lector de OpenAPI crea un objeto de tag **distinto por operación** aunque el nombre sea igual. `ControllersGenerator` filtra operaciones comparando ese objeto por referencia, no por nombre → **solo sobrevive una operación por tag en el controller generado, las demás se descartan en silencio, sin error de compilación ni de generación**. **Confirmado generando y corriendo el proyecto real**: con 3 operaciones tageadas `books` sin declarar el tag en la raíz, el controller final solo tenía el método `GetBooks` — `CreateBook` y `GetBookById` desaparecieron. Fix: declarar `tags: [{name: books}]` a nivel raíz. |
+ApiGen's OpenAPI parsing (`FileUtils.ReadOpenApi`) **is not a hard
+gate**: parser errors are only logged (`Diagnostic OpenApi ~
+{"Errors":[...]}`), and generation proceeds anyway. And several
+`x-apigen-*` properties that appear in the repo's example specs (`petstore.json`,
+`api-hospital.yml`, `Petstore with Owners-enriched.yaml`) **are not read by
+any generator** — they are decorative. This skill is the only real gate
+before generating.
 
 ---
 
-## Procedimiento
+## Truth table — what the generator actually reads
 
-1. Localizar el spec a validar (el que indique el usuario, o el que se vaya
-   a usar con `apigen-cli`/`apigen-api` a continuación).
-2. Ejecutar el validador (ruta según "Dónde vive el script de esta skill"):
+### `x-apigen-project` (document root)
+
+| Property | Status | Consequence if missing/wrong |
+|---|---|---|
+| `data-driver` | Only functional property | Missing or a value other than `postgresql`/`mysql` → silently falls back to in-memory persistence |
+| `name`, `description`, `version`, `java-properties` | **Decorative, never read** | The project's actual name/description come from the standard OpenAPI `info.title`/`info.description`, not from here |
+
+### `x-apigen-models` (under `components`, next to `schemas`)
+
+| Property | Status | Consequence if missing/wrong |
+|---|---|---|
+| The whole extension | **Required** | Missing entirely → the generator produces a bogus `"Sample"` placeholder entity (repository, service, DbSet included) instead of your real entities — no error |
+| `<Entity>.attributes` | Required to have properties | Missing/empty → the class is generated without properties |
+| `attributes[].name` (list style) | **Required** | Missing → `NullReferenceException` when generating |
+| `attributes[].type` (both styles) | **Required** | Missing → `NullReferenceException`/`InvalidCastException` when generating |
+| `attributes[].items-type` | Optional, for `type: Array`/`Relation` | It is the **only** key that controls the element type — see next row |
+| `attributes[].ref-model` / `.is-array` / `.items-ref-model` / `.relation-type` / `.validations` | **Decorative, never read** | Use `items-type` instead for arrays/relations — these keys are silently ignored even though they appear in the example specs |
+| `attributes[].relational-persistence.primary-key: true` | Only key that marks the PK | Without it, no `[Key]`/autogenerated is generated |
+| `attributes[].relational-persistence.autogenerated` | **Decorative, never read** | Only `primary-key: true` matters, this value is ignored |
+| `attributes[].relational-persistence.column` | Optional | If it differs from the property name, it is treated as an FK |
+| `attributes[].relational-persistence.relation-type` / `.join-column` / `.referenced-column` / `.join-table` / `.inverse-join-column` | **Decorative, never read** | Present in several example specs, not consumed by any generator |
+| FK whose referenced entity uses **map**-style `attributes` | Silent risk | FK type resolution only works if the referenced entity uses **list** style; with map style it falls back to `long?` without warning |
+
+### `x-apigen-mapping` (in the DTO schema)
+
+| Property | Status | Consequence if missing/wrong |
+|---|---|---|
+| `model` | Required for the DTO to have a mapping | Missing → no `CreateMap<Dto, Entity>` is generated for that DTO (no error) |
+| `model` value does not exist in `x-apigen-models` | Silent error when generating | The generated mapping references a nonexistent entity |
+
+### `x-apigen-binding` (on the `path`)
+
+| Property | Status | Consequence if missing/wrong |
+|---|---|---|
+| The extension on a path | Optional but recommended | Missing → the endpoint is generated as a `NotImplementedException` stub, not real CRUD |
+| `model` | Required when `x-apigen-binding` is used | Missing, or a value that does not exist in `x-apigen-models` → the generated controller references a nonexistent service → **the project does not compile** (`dotnet build` fails), one step after where the user would expect the error |
+
+### Standard OpenAPI fields (not `x-apigen-*`) that ApiGen also requires
+
+| Property | Status | Consequence if missing/wrong |
+|---|---|---|
+| `paths.<path>.<method>.operationId` | **Required on every operation** | Missing → `ArgumentNullException` in `Humanizer.Pascalize` when generating the controller (`ControllersGenerator.DefineEndpointMethod`) — **confirmed by running the CLI directly**, not theoretical. It is not an `x-apigen-*` extension, it is a standard OpenAPI field that most editors don't flag as mandatory, which is why it's easy to omit in a new spec. |
+| `tags` (array at the document root level) | **Required if 2+ operations share a tag** | If a tag name (e.g. `books`) is used in several operations **only inline** (`operation.tags: [books]`) and is never declared in the root `tags:` array, the OpenAPI reader creates a **different tag object per operation** even though the name is the same. `ControllersGenerator` filters operations by comparing that object by reference, not by name → **only one operation per tag survives in the generated controller, the others are silently dropped, with no compilation or generation error**. **Confirmed by generating and running the real project**: with 3 operations tagged `books` without declaring the tag at the root, the final controller only had the `GetBooks` method — `CreateBook` and `GetBookById` disappeared. Fix: declare `tags: [{name: books}]` at the root level. |
+
+---
+
+## Procedure
+
+1. Locate the spec to validate (the one the user indicates, or the one that will
+   be used with `apigen-cli`/`apigen-api` next).
+2. Run the validator (path as per "Where this skill's script lives"):
 
    ```bash
-   <ruta-a-esta-skill>/scripts/apigen-openapi-check.sh "<ruta-spec>"
+   <path-to-this-skill>/scripts/apigen-openapi-check.sh "<spec-path>"
    ```
    ```powershell
-   <ruta-a-esta-skill>/scripts/apigen-openapi-check.ps1 -Spec "<ruta-spec>"
+   <path-to-this-skill>/scripts/apigen-openapi-check.ps1 -Spec "<spec-path>"
    ```
 
-   El script requiere Python 3 (+ PyYAML si el spec es `.yml`/`.yaml`: `pip
-   install pyyaml`). Si falta, el script lo indica con un mensaje claro —
-   no lo asumas instalado, verifica primero si el comando falla.
-3. El script imprime tres bloques — **CRÍTICO**, **ADVERTENCIA**,
-   **INFORMATIVO** — y termina con código de salida distinto de cero si hay
-   algún crítico.
-4. Reportar al usuario los hallazgos agrupados por severidad, con el
-   snippet de corrección exacto de la tabla de arriba para cada uno que
-   aplique. No inventes contenido del spec del usuario — señala el hueco y
-   pide confirmación antes de editar.
-5. Si hay hallazgos **CRÍTICOS**, no continúes a generar — corrígelos
-   primero (o confirma con el usuario que los acepta a sabiendas).
-6. Si el reporte está limpio (o solo con informativos aceptados), continúa
-   con la skill de generación correspondiente (`apigen-cli` o `apigen-api`).
+   The script requires Python 3 (+ PyYAML if the spec is `.yml`/`.yaml`: `pip
+   install pyyaml`). If missing, the script says so with a clear message —
+   don't assume it's installed, check first whether the command fails.
+3. The script prints three blocks — **CRITICAL**, **WARNING**,
+   **INFO** — and exits with a non-zero exit code if there is
+   any critical finding.
+4. Report the findings to the user grouped by severity, with the
+   exact fix snippet from the table above for each one that
+   applies. Don't invent content for the user's spec — point out the gap and
+   ask for confirmation before editing.
+5. If there are **CRITICAL** findings, don't proceed to generate — fix them
+   first (or confirm with the user that they knowingly accept them).
+6. If the report is clean (or only has accepted info findings), continue
+   with the corresponding generation skill (`apigen-cli` or `apigen-api`).
 
-## Notas
+## Notes
 
-- Este validador es determinista (no es el LLM "revisando a ojo" el YAML) —
-  mismo principio que aplica ApiGen al propio proceso de generación: motor
-  de reglas fijo, no juicio del modelo.
-- Las reglas están derivadas directamente de leer `src/Generator/Utils/OpenApiUtils.cs`,
-  `ModelsEntityGenerator.cs`, `MappingProfileGenerator.cs` y
-  `ControllersGenerator.cs` en el repo [apiaddicts/apigen.net](https://github.com/apiaddicts/apigen.net)
-  — si el generador cambia, este script y esta tabla pueden quedar
-  desactualizados y deben revisarse juntos.
-- No valida buenas prácticas generales de OpenAPI (naming, versionado,
-  seguridad) — eso queda fuera del alcance de esta skill.
+- This validator is deterministic (it's not the LLM "eyeballing" the YAML) —
+  the same principle ApiGen applies to the generation process itself: a fixed
+  rules engine, not model judgment.
+- The rules are derived directly from reading `src/Generator/Utils/OpenApiUtils.cs`,
+  `ModelsEntityGenerator.cs`, `MappingProfileGenerator.cs` and
+  `ControllersGenerator.cs` in the [apiaddicts/apigen.net](https://github.com/apiaddicts/apigen.net) repo
+  — if the generator changes, this script and this table may become
+  outdated and must be reviewed together.
+- It does not validate general OpenAPI best practices (naming, versioning,
+  security) — that is outside the scope of this skill.

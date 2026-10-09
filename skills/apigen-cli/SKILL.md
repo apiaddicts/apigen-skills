@@ -1,130 +1,130 @@
 ---
 name: apigen-cli
 description: >
-  Instala y ejecuta el CLI `apigen` de este repo para generar un proyecto .NET
-  (arquitectura hexagonal: Api/Domain/Infrastructure + tests) a partir de una
-  definición OpenAPI. Ayuda a preparar/validar las extensiones x-apigen-project,
-  x-apigen-models, x-apigen-mapping y x-apigen-binding en el spec antes de generar,
-  resuelve la instalación global del tool (instalador oficial install.sh/.ps1,
-  binario self-contained sin requerir .NET, o dotnet tool install si ya hay SDK
-  instalado, con fallback a build+pack local si el paquete no está publicado en
-  NuGet), ejecuta
-  `apigen <spec> -o <dir>` y descomprime el resultado. Usar cuando el usuario pida
-  "genera el proyecto con apigen", "usa el CLI para generar la API", "instala el
-  CLI apigen", "genera código desde mi OpenAPI", o similar.
+  Installs and runs this repo's `apigen` CLI to generate a .NET project
+  (hexagonal architecture: Api/Domain/Infrastructure + tests) from an
+  OpenAPI definition. Helps prepare/validate the x-apigen-project,
+  x-apigen-models, x-apigen-mapping and x-apigen-binding extensions in the spec before generating,
+  handles the global tool installation (official install.sh/.ps1 installer,
+  self-contained binary that does not require .NET, or dotnet tool install if an SDK is already
+  installed, with a fallback to local build+pack if the package is not published on
+  NuGet), runs
+  `apigen <spec> -o <dir>` and extracts the result. Use when the user asks to
+  "generate the project with apigen", "use the CLI to generate the API", "install the
+  apigen CLI", "generate code from my OpenAPI", or similar.
 ---
 
 # Apigen CLI Skill
 
-Automatiza instalación + uso del CLI `apigen` (proyecto `src/Command`, paquete
-`ApiAddicts.Apigen`, comando global `apigen`) para generar un proyecto .NET
-hexagonal a partir de un spec OpenAPI.
+Automates installation + usage of the `apigen` CLI (project `src/Command`, package
+`ApiAddicts.Apigen`, global command `apigen`) to generate a hexagonal .NET
+project from an OpenAPI spec.
 
-Comando final del CLI (sin subcomandos):
+Final CLI command (no subcommands):
 ```
-apigen <ruta-openapi.yml|yaml|json> [-o|--outpath <dir>]
+apigen <openapi-path.yml|yaml|json> [-o|--outpath <dir>]
 ```
-- Arg posicional = ruta al spec (YAML o JSON, autodetectado). Si se omite, genera
-  un proyecto "template" stub.
-- `-o`/`--outpath` = carpeta de salida del `.zip` generado (default: directorio del
-  propio ejecutable — **siempre pasar `-o` explícito**, no confiar en el default).
-- Nombre del proyecto generado = `info.title` del spec (PascalCase, sin espacios/guiones).
-  No es un flag.
-- Target framework generado: fijo en `net10.0`.
+- Positional arg = path to the spec (YAML or JSON, auto-detected). If omitted, it generates
+  a stub "template" project.
+- `-o`/`--outpath` = output folder for the generated `.zip` (default: the executable's
+  own directory — **always pass `-o` explicitly**, do not rely on the default).
+- Generated project name = the spec's `info.title` (PascalCase, no spaces/hyphens).
+  It is not a flag.
+- Generated target framework: fixed at `net10.0`.
 
 ---
 
-## Fase 1 — Asegurar instalación global de `apigen`
+## Phase 1 — Ensure global installation of `apigen`
 
-Dos familias de instalación, en orden de preferencia. La vía NuGet
-(`dotnet tool install`) **requiere tener el SDK de .NET instalado** — si
-no está, o no se quiere depender de él, usar directamente la vía del
-instalador oficial (binario self-contained, no necesita .NET para nada).
+Two installation families, in order of preference. The NuGet route
+(`dotnet tool install`) **requires the .NET SDK to be installed** — if
+it is not, or you do not want to depend on it, go straight to the
+official installer route (self-contained binary, does not need .NET at all).
 
-1. Detectar si ya está instalado, en el PATH:
+1. Detect whether it is already installed, on the PATH:
    ```powershell
    Get-Command apigen -ErrorAction SilentlyContinue
    ```
-   Si existe, saltar a Fase 2.
+   If it exists, skip to Phase 2.
 
-2. Si no está en el PATH, comprobar si ya está instalado en la ruta
-   default del instalador oficial (puede no haberse recargado el PATH de
-   esta sesión):
+2. If it is not on the PATH, check whether it is already installed at the
+   official installer's default path (the PATH may not have been reloaded in
+   this session):
    - Windows: `"$env:LOCALAPPDATA\apigen\bin\apigen.exe"`
    - Linux/macOS: `"$HOME/.apigen/bin/apigen"`
-   Si existe ahí, invocarlo por ruta absoluta en esta sesión (no depender
-   de que el PATH ya esté recargado).
+   If it exists there, invoke it by absolute path in this session (do not rely
+   on the PATH having been reloaded).
 
-3. Si no existe en ningún lado, elegir vía de instalación:
+3. If it does not exist anywhere, choose an installation route:
 
-   **Vía A — instalador oficial (recomendada, no requiere .NET instalado):**
-   binario self-contained, lleva el runtime embebido.
+   **Route A — official installer (recommended, does not require .NET installed):**
+   self-contained binary, ships with the runtime embedded.
    ```powershell
    irm https://raw.githubusercontent.com/apiaddicts/apigen.net/main/install.ps1 | iex
    ```
    ```bash
    curl -fsSL https://raw.githubusercontent.com/apiaddicts/apigen.net/main/install.sh | sh
    ```
-   Instala en la ruta default del paso 2. En Windows, el instalador agrega
-   la carpeta al PATH de usuario pero **requiere reiniciar la terminal**
-   para que se recargue — dentro de la misma sesión, invocar por ruta
-   absoluta.
+   Installs to the default path from step 2. On Windows, the installer adds
+   the folder to the user PATH but **requires restarting the terminal**
+   for it to reload — within the same session, invoke it by absolute
+   path.
 
-   **Vía B — `dotnet tool` (solo si ya hay SDK de .NET instalado):**
+   **Route B — `dotnet tool` (only if a .NET SDK is already installed):**
    ```powershell
    dotnet tool install -g ApiAddicts.Apigen
    ```
-   **Nota**: el repo no tiene workflow de CI/publish confirmado — este
-   paquete puede no estar publicado. Si el comando falla (`NU1101`/`not
-   found` o similar), o si directamente no hay `dotnet` disponible, no
-   reintentar en loop — usar la Vía A, o el fallback de build+pack local:
+   **Note**: the repo has no confirmed CI/publish workflow — this
+   package may not be published. If the command fails (`NU1101`/`not
+   found` or similar), or if `dotnet` is simply not available, do not
+   retry in a loop — use Route A, or the local build+pack fallback:
    ```powershell
    dotnet pack ./src/Command/Command.csproj -c Release -o ./nupkg
    dotnet tool install -g --add-source ./nupkg ApiAddicts.Apigen
    ```
-   Si ya estaba instalado desde un `./nupkg` anterior (versión distinta),
-   usar `dotnet tool update -g --add-source ./nupkg ApiAddicts.Apigen` en
-   vez de `install`. Este fallback también requiere `dotnet` — si no está
-   disponible, la única vía viable es la A.
+   If it was already installed from a previous `./nupkg` (different version),
+   use `dotnet tool update -g --add-source ./nupkg ApiAddicts.Apigen` instead
+   of `install`. This fallback also requires `dotnet` — if it is not
+   available, the only viable route is A.
 
-4. Verificar instalación:
+4. Verify the installation:
    ```powershell
    Get-Command apigen
    ```
-   (o `command -v apigen` / ruta absoluta si el PATH de la sesión no se
-   recargó). Confirmar al usuario que quedó disponible. Nota informativa
-   (no bloqueante): el banner de versión que imprime el CLI viene de
-   `Directory.Build.props` (`1.0.1`), que puede no coincidir con el badge
-   del README (`1.0.0`) — es un desfase conocido del repo, no un error de
-   la skill.
+   (or `command -v apigen` / absolute path if the session PATH was not
+   reloaded). Confirm to the user that it is available. Informational note
+   (non-blocking): the version banner printed by the CLI comes from
+   `Directory.Build.props` (`1.0.1`), which may not match the README badge
+   (`1.0.0`) — this is a known mismatch in the repo, not an error in
+   the skill.
 
 ---
 
-## Fase 2 — Preparar/validar el spec OpenAPI
+## Phase 2 — Prepare/validate the OpenAPI spec
 
-Localizar el archivo OpenAPI que el usuario quiere usar (o usar uno de
-`src/Generator/Examples/*.yml|json` como referencia/prueba: `api-example.yml`,
-`api-hospital.yml`, `petstore.json`, `Petstore with Owners-enriched.yaml` — ojo,
-este último tiene espacios en el nombre, hay que citarlo entre comillas).
+Locate the OpenAPI file the user wants to use (or use one of
+`src/Generator/Examples/*.yml|json` as a reference/test: `api-example.yml`,
+`api-hospital.yml`, `petstore.json`, `Petstore with Owners-enriched.yaml` — note,
+the last one has spaces in its name, so it must be quoted).
 
-No hay archivo de config separado: toda la configuración vive como extensiones
-`x-apigen-*` dentro del propio spec. Revisar el spec del usuario y señalar (sin
-inventar contenido sin confirmar con el usuario) lo que falte:
+There is no separate config file: all configuration lives as `x-apigen-*`
+extensions inside the spec itself. Review the user's spec and point out (without
+inventing content without confirming with the user) what is missing:
 
-### `x-apigen-project` (nivel documento raíz)
-Metadata del proyecto + driver de base de datos.
+### `x-apigen-project` (root document level)
+Project metadata + database driver.
 ```yaml
 x-apigen-project:
   name: My Project
-  description: Descripción del proyecto
+  description: Project description
   version: 1.0.0
-  data-driver: postgresql   # postgresql | mysql | (omitir = in-memory)
+  data-driver: postgresql   # postgresql | mysql | (omit = in-memory)
 ```
-Si falta, es el primero que hay que agregar — sin él, el proyecto igual genera
-pero sin metadata explícita ni driver de persistencia definido.
+If missing, it is the first thing to add — without it, the project still generates
+but with no explicit metadata and no persistence driver defined.
 
-### `x-apigen-models` (nivel components, junto a los schemas)
-Define entidades y su mapeo relacional.
+### `x-apigen-models` (components level, alongside the schemas)
+Defines entities and their relational mapping.
 ```yaml
 x-apigen-models:
   User:
@@ -140,11 +140,11 @@ x-apigen-models:
       userName:
         type: string
 ```
-Revisar que cada entidad que deba persistirse tenga esto definido, especialmente
-la primary key (`primary-key: true`).
+Check that every entity that must be persisted has this defined, especially
+the primary key (`primary-key: true`).
 
-### `x-apigen-mapping` (nivel schema, en el DTO)
-Liga un DTO (schema usado en request/response) con una entidad de `x-apigen-models`.
+### `x-apigen-mapping` (schema level, on the DTO)
+Binds a DTO (schema used in request/response) to an entity from `x-apigen-models`.
 ```yaml
 components:
   schemas:
@@ -154,59 +154,59 @@ components:
       type: object
       properties: ...
 ```
-Revisar que cada DTO expuesto en la API tenga esta liga apuntando a un `model`
-que exista en `x-apigen-models`.
+Check that every DTO exposed in the API has this binding pointing to a `model`
+that exists in `x-apigen-models`.
 
-### `x-apigen-binding` (nivel path)
-Liga un grupo de endpoints a un modelo (controla el controller/servicio generado).
+### `x-apigen-binding` (path level)
+Binds a group of endpoints to a model (controls the generated controller/service).
 ```yaml
 paths:
   /users:
     x-apigen-binding:
       model: User
 ```
-Revisar que cada path relevante lo tenga.
+Check that every relevant path has it.
 
-### Conexión a base de datos
-No es parte del spec ni del CLI — si `data-driver` no es in-memory, la connection
-string se lee en runtime del proyecto generado vía env var `DATABASE_URL`. Solo
-informar esto al usuario, no configurarlo en esta fase.
+### Database connection
+It is not part of the spec or the CLI — if `data-driver` is not in-memory, the connection
+string is read at runtime by the generated project via the `DATABASE_URL` env var. Only
+inform the user about this, do not configure it in this phase.
 
-Al detectar huecos: mostrar el snippet exacto a agregar (basado en los ejemplos
-de arriba) y pedir confirmación antes de editar el spec del usuario.
+When gaps are detected: show the exact snippet to add (based on the examples
+above) and ask for confirmation before editing the user's spec.
 
 ---
 
-## Fase 3 — Ejecutar generación
+## Phase 3 — Run generation
 
-1. Confirmar/crear carpeta de salida explícita:
+1. Confirm/create an explicit output folder:
    ```powershell
    New-Item -ItemType Directory -Force -Path <outdir>
    ```
-2. Ejecutar:
+2. Run:
    ```powershell
-   apigen "<ruta-spec>" -o "<outdir>"
+   apigen "<spec-path>" -o "<outdir>"
    ```
-3. Revisar la salida de consola (Serilog) por warnings de diagnóstico del parser
-   OpenAPI. Si algo se ve sospechoso, también hay log rotativo en:
-   `<carpeta-del-ejecutable>\Logs\Apigen_Dotnet_{version}_.txt`
-   (ubicar la carpeta del ejecutable con `(Get-Command apigen).Source`, buscar
-   `Logs` junto al `.dll`/tool real si se necesita más detalle).
-4. El CLI deja un `.zip` en `<outdir>` llamado `<nombre-archivo-sin-extension>.zip`
-   (o `template.zip` si no se pasó spec). Descomprimir:
+3. Review the console output (Serilog) for diagnostic warnings from the OpenAPI
+   parser. If something looks suspicious, there is also a rolling log at:
+   `<executable-folder>\Logs\Apigen_Dotnet_{version}_.txt`
+   (locate the executable folder with `(Get-Command apigen).Source`, look for
+   `Logs` next to the actual `.dll`/tool if more detail is needed).
+4. The CLI leaves a `.zip` in `<outdir>` named `<file-name-without-extension>.zip`
+   (or `template.zip` if no spec was passed). Extract it:
    ```powershell
-   Expand-Archive -Path "<outdir>\<nombre>.zip" -DestinationPath "<outdir>\<nombre>" -Force
+   Expand-Archive -Path "<outdir>\<name>.zip" -DestinationPath "<outdir>\<name>" -Force
    ```
 
 ---
 
-## Fase 4 — Post-generación
+## Phase 4 — Post-generation
 
-- Recordar al usuario: si usó `data-driver: postgresql|mysql`, debe setear
-  `DATABASE_URL` como variable de entorno antes de correr el proyecto generado.
-- Sugerir verificar que compila:
+- Remind the user: if they used `data-driver: postgresql|mysql`, they must set
+  `DATABASE_URL` as an environment variable before running the generated project.
+- Suggest verifying that it builds:
   ```powershell
-  dotnet build "<outdir>\<nombre>\<nombre>.sln"
+  dotnet build "<outdir>\<name>\<name>.sln"
   ```
-- No ejecutar `dotnet run` del proyecto generado ni tocar bases de datos reales
-  sin que el usuario lo pida explícitamente.
+- Do not run `dotnet run` on the generated project or touch real databases
+  unless the user explicitly asks.

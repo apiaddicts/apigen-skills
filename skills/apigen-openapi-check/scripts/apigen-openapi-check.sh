@@ -15,8 +15,8 @@ if [ -z "$PY" ]; then
   elif command -v python >/dev/null 2>&1; then
     PY=python
   else
-    echo "ERROR: no se encontro python3/python en el PATH." >&2
-    echo "Este validador requiere Python 3 + PyYAML: pip install pyyaml" >&2
+    echo "ERROR: python3/python not found in PATH." >&2
+    echo "This validator requires Python 3 + PyYAML: pip install pyyaml" >&2
     exit 2
   fi
 fi

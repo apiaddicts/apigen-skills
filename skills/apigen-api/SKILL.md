@@ -1,132 +1,132 @@
 ---
 name: apigen-api
 description: >
-  Genera un proyecto .NET (arquitectura hexagonal) a partir de un OpenAPI
-  llamando a la REST API de ApiGen (`POST /generator/file`) en vez del CLI
-  local. Usa el script wrapper `scripts/apigen-api.sh` /
-  `scripts/apigen-api.ps1` bundleado con esta skill, que requiere la
-  variable de entorno `APIGEN_API_KEY`. Usar cuando el usuario pida "genera
-  el proyecto usando la API", "llama al endpoint de apigen desplegado", "usa
-  la REST API en vez del CLI", o dé una URL de ApiGen desplegada y una
+  Generates a .NET project (hexagonal architecture) from an OpenAPI spec by
+  calling the ApiGen REST API (`POST /generator/file`) instead of the local
+  CLI. Uses the wrapper script `scripts/apigen-api.sh` /
+  `scripts/apigen-api.ps1` bundled with this skill, which requires the
+  `APIGEN_API_KEY` environment variable. Use when the user asks to "generate
+  the project using the API", "call the deployed apigen endpoint", "use
+  the REST API instead of the CLI", or gives a deployed ApiGen URL and an
   apikey.
 ---
 
 # Apigen REST API Skill
 
-Genera un proyecto .NET hexagonal a partir de un spec OpenAPI llamando a la
-REST API de ApiGen (`POST /generator/file`), en vez de usar el CLI local
-(ver skill `apigen-cli` para esa vía). Útil cuando no hay CLI instalado o se
-quiere integrar contra una instancia ya desplegada (dev/staging/prod).
+Generates a hexagonal .NET project from an OpenAPI spec by calling the
+ApiGen REST API (`POST /generator/file`), instead of using the local CLI
+(see the `apigen-cli` skill for that route). Useful when no CLI is installed or
+you want to integrate against an already deployed instance (dev/staging/prod).
 
-La API solo acepta **un** parámetro: `file` (multipart/form-data) con el
-OpenAPI. No hay flags de salida ni de configuración — todo lo demás
-(driver de base de datos, mapeos, binding) vive dentro del spec vía las
-extensiones `x-apigen-*` (mismas reglas que la skill `apigen-cli`, Fase 2).
+The API accepts only **one** parameter: `file` (multipart/form-data) with the
+OpenAPI spec. There are no output or configuration flags — everything else
+(database driver, mappings, binding) lives inside the spec via the
+`x-apigen-*` extensions (same rules as the `apigen-cli` skill, Phase 2).
 
 ---
 
-## Dónde viven los scripts de esta skill
+## Where this skill's scripts live
 
-Esta skill trae bundleados `scripts/apigen-api.sh` y `scripts/apigen-api.ps1`
-**junto a este mismo `SKILL.md`** (no en la raíz de ningún proyecto). Una vez
-instalada con `npx skills add`, quedan en la carpeta propia de la skill según
-el agente usado, por ejemplo:
+This skill bundles `scripts/apigen-api.sh` and `scripts/apigen-api.ps1`
+**next to this very `SKILL.md`** (not at the root of any project). Once
+installed with `npx skills add`, they live in the skill's own folder, which
+depends on the agent used, for example:
 - Claude Code: `.claude/skills/apigen-api/scripts/`
-- Otros agentes soportados por el CLI `skills`: `<carpeta-de-skills-del-agente>/apigen-api/scripts/`
+- Other agents supported by the `skills` CLI: `<agent-skills-folder>/apigen-api/scripts/`
 
-Si no conocés la ruta exacta en el proyecto actual, ubicala con:
+If you don't know the exact path in the current project, locate it with:
 ```bash
 find . -path '*apigen-api/scripts/apigen-api.sh'
 ```
 ```powershell
 Get-ChildItem -Recurse -Filter apigen-api.ps1
 ```
-En los ejemplos de abajo, `<ruta-a-esta-skill>` es esa carpeta (ej.
+In the examples below, `<path-to-this-skill>` is that folder (e.g.
 `.claude/skills/apigen-api`).
 
 ---
 
-## Gestión de la apikey — regla no negociable
+## API key handling — non-negotiable rule
 
-- La apikey **siempre** viene de la variable de entorno `APIGEN_API_KEY`.
-  Nunca la escribas en un comando, en este archivo, en un `.md`, en un log,
-  ni en un mensaje al usuario.
-- Si el usuario pega la key en el chat, úsala solo para exportarla a la
-  variable de entorno de la sesión — no la repitas de vuelta ni la dejes en
-  ningún archivo versionado.
-- Antes de generar, comprueba que la variable exista:
+- The API key **always** comes from the `APIGEN_API_KEY` environment variable.
+  Never write it in a command, in this file, in a `.md`, in a log,
+  or in a message to the user.
+- If the user pastes the key in the chat, use it only to export it to the
+  session's environment variable — don't echo it back or leave it in
+  any versioned file.
+- Before generating, check that the variable exists:
   ```bash
-  test -n "$APIGEN_API_KEY" && echo "seteada" || echo "falta APIGEN_API_KEY"
+  test -n "$APIGEN_API_KEY" && echo "set" || echo "APIGEN_API_KEY missing"
   ```
   ```powershell
-  if ($env:APIGEN_API_KEY) { "seteada" } else { "falta APIGEN_API_KEY" }
+  if ($env:APIGEN_API_KEY) { "set" } else { "APIGEN_API_KEY missing" }
   ```
-  Si falta, pide al usuario que la exporte y detente — no la pidas para
-  escribirla tú en el comando.
-- Si necesitas persistirla localmente entre sesiones, usa un `.env`
-  **gitignored** (confirmar que `.env`/`.env.*` están en `.gitignore` antes
-  de crear uno) — nunca un archivo versionado.
-- El script wrapper (`scripts/apigen-api.sh` / `.ps1`) ya lee la variable
-  directamente; no dupliques la key como argumento del script.
+  If it's missing, ask the user to export it and stop — don't ask for it so
+  you can write it into the command yourself.
+- If you need to persist it locally across sessions, use a **gitignored**
+  `.env` (confirm that `.env`/`.env.*` are in `.gitignore` before
+  creating one) — never a versioned file.
+- The wrapper script (`scripts/apigen-api.sh` / `.ps1`) already reads the variable
+  directly; don't duplicate the key as a script argument.
 
 ---
 
-## Fase 1 — Resolver URL del endpoint
+## Phase 1 — Resolve the endpoint URL
 
-- **No hay endpoint default.** El wrapper no asume ninguna URL "conocida" —
-  la URL de destino es **siempre obligatoria**, igual que `APIGEN_API_KEY`.
-- Si el usuario da una URL desplegada, úsala: `--url <url>` (bash) /
-  `-Url <url>` (PowerShell), o exportar `APIGEN_API_URL` antes de invocar.
-- Si el usuario no da URL y `APIGEN_API_URL` no está seteada, **no
-  inventes ni asumas un endpoint** — pídesela antes de ejecutar. El script
-  falla con mensaje claro si llega a faltar de todos modos.
+- **There is no default endpoint.** The wrapper doesn't assume any "well-known"
+  URL — the target URL is **always required**, just like `APIGEN_API_KEY`.
+- If the user gives a deployed URL, use it: `--url <url>` (bash) /
+  `-Url <url>` (PowerShell), or export `APIGEN_API_URL` before invoking.
+- If the user doesn't give a URL and `APIGEN_API_URL` isn't set, **don't
+  invent or assume an endpoint** — ask for it before running. The script
+  fails with a clear message if it's missing anyway.
 
-## Fase 2 — Preparar/validar el spec OpenAPI
+## Phase 2 — Prepare/validate the OpenAPI spec
 
-Misma validación que la skill `apigen-cli` (Fase 2): revisar
+Same validation as the `apigen-cli` skill (Phase 2): review
 `x-apigen-project`, `x-apigen-models`, `x-apigen-mapping`, `x-apigen-binding`
-en el spec del usuario antes de llamar a la API. No inventar contenido sin
-confirmar con el usuario. Si la skill `apigen-openapi-check` está instalada,
-úsala primero.
+in the user's spec before calling the API. Don't invent content without
+confirming with the user. If the `apigen-openapi-check` skill is installed,
+use it first.
 
-## Fase 3 — Ejecutar generación vía API
+## Phase 3 — Run generation via the API
 
-1. Confirmar `APIGEN_API_KEY` seteada (ver arriba).
-2. Confirmar URL de destino resuelta (Fase 1) — vía `APIGEN_API_URL` o
-   `--url`/`-Url`. Sin ella, no ejecutes el wrapper: pídesela al usuario.
-3. Ejecutar el wrapper (ruta según "Dónde viven los scripts de esta skill"):
+1. Confirm `APIGEN_API_KEY` is set (see above).
+2. Confirm the target URL is resolved (Phase 1) — via `APIGEN_API_URL` or
+   `--url`/`-Url`. Without it, don't run the wrapper: ask the user for it.
+3. Run the wrapper (path per "Where this skill's scripts live"):
 
    ```bash
-   <ruta-a-esta-skill>/scripts/apigen-api.sh "<ruta-spec>" -o "<outdir>" --url "<url>" --unzip
+   <path-to-this-skill>/scripts/apigen-api.sh "<spec-path>" -o "<outdir>" --url "<url>" --unzip
    ```
    ```powershell
-   <ruta-a-esta-skill>/scripts/apigen-api.ps1 -Spec "<ruta-spec>" -OutDir "<outdir>" -Url "<url>" -Unzip
+   <path-to-this-skill>/scripts/apigen-api.ps1 -Spec "<spec-path>" -OutDir "<outdir>" -Url "<url>" -Unzip
    ```
-4. El script:
-   - valida que el spec exista,
-   - valida que `APIGEN_API_KEY` esté seteada (falla con mensaje claro si no),
-   - valida que la URL esté seteada, sin default (falla con mensaje claro si no),
-   - crea `<outdir>` si no existe,
-   - hace el POST multipart y guarda `<outdir>/<nombre-spec>.zip`,
-   - con `--unzip`/`-Unzip`, descomprime en `<outdir>/<nombre-spec>/`.
-5. Si el HTTP status no es 200, el script imprime el body de error
-   (`ErrorsResponse`: `{"Errors":[{"message":...,"status":...}]}`) y termina
-   con código distinto de cero — repórtalo al usuario, no asumas éxito.
+4. The script:
+   - validates that the spec exists,
+   - validates that `APIGEN_API_KEY` is set (fails with a clear message if not),
+   - validates that the URL is set, no default (fails with a clear message if not),
+   - creates `<outdir>` if it doesn't exist,
+   - sends the multipart POST and saves `<outdir>/<spec-name>.zip`,
+   - with `--unzip`/`-Unzip`, extracts into `<outdir>/<spec-name>/`.
+5. If the HTTP status isn't 200, the script prints the error body
+   (`ErrorsResponse`: `{"Errors":[{"message":...,"status":...}]}`) and exits
+   with a non-zero code — report it to the user, don't assume success.
 
-## Fase 4 — Post-generación
+## Phase 4 — Post-generation
 
-Igual que `apigen-cli` Fase 4: si el spec usa `data-driver`
-postgresql/mysql, recordar que el proyecto generado necesita `DATABASE_URL`
-en runtime. Sugerir `dotnet build` para verificar que compila. No correr el
-proyecto ni tocar bases reales sin pedirlo el usuario explícitamente.
+Same as `apigen-cli` Phase 4: if the spec uses `data-driver`
+postgresql/mysql, remind the user that the generated project needs `DATABASE_URL`
+at runtime. Suggest `dotnet build` to verify it compiles. Don't run the
+project or touch real databases unless the user explicitly asks.
 
 ---
 
-## Notas
+## Notes
 
-- Esta skill es el equivalente "remoto" de `apigen-cli` — mismo spec, misma
-  arquitectura generada, distinto canal de invocación (HTTP en vez de
-  binario local). Útil para pipelines CI/CD o entornos sin el CLI instalado.
-- No hay endpoint de health/version documentado en esta skill — si se
-  necesita comprobar disponibilidad del servicio antes de generar, usar el
-  Swagger UI de la instancia (`<base-url>/swagger`) manualmente.
+- This skill is the "remote" equivalent of `apigen-cli` — same spec, same
+  generated architecture, different invocation channel (HTTP instead of a
+  local binary). Useful for CI/CD pipelines or environments without the CLI installed.
+- No health/version endpoint is documented in this skill — if you
+  need to check service availability before generating, use the
+  instance's Swagger UI (`<base-url>/swagger`) manually.

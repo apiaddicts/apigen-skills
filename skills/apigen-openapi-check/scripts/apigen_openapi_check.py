@@ -36,7 +36,7 @@ def load_spec(path):
             import yaml
         except ImportError:
             print(
-                "ERROR: PyYAML no esta instalado. Instalalo con: pip install pyyaml",
+                "ERROR: PyYAML is not installed. Install it with: pip install pyyaml",
                 file=sys.stderr,
             )
             sys.exit(2)
@@ -61,21 +61,21 @@ def check_project(doc):
     proj = doc.get("x-apigen-project")
     if not isinstance(proj, dict):
         info(
-            "x-apigen-project ausente: sin problema critico, pero 'data-driver' no "
-            "quedara definido (persistencia in-memory por defecto)."
+            "x-apigen-project missing: not a critical problem, but 'data-driver' will "
+            "not be defined (in-memory persistence by default)."
         )
         return
     driver = proj.get("data-driver")
     if driver is not None and str(driver).lower() not in ("postgresql", "mysql"):
         warn(
-            f"x-apigen-project.data-driver = '{driver}' no es 'postgresql' ni "
-            "'mysql' -> cae silenciosamente a in-memory."
+            f"x-apigen-project.data-driver = '{driver}' is neither 'postgresql' nor "
+            "'mysql' -> silently falls back to in-memory."
         )
     for k in DEAD_PROJECT_KEYS:
         if k in proj:
             info(
-                f"x-apigen-project.{k} esta presente pero el generador nunca lo lee "
-                "(usa info.title/info.description del OpenAPI estandar en su lugar)."
+                f"x-apigen-project.{k} is present but the generator never reads it "
+                "(it uses the standard OpenAPI info.title/info.description instead)."
             )
 
 
@@ -86,7 +86,7 @@ def iter_attributes(attrs):
             if not isinstance(a, dict):
                 continue
             name = a.get("name")
-            yield (name or "<sin name>", a, "list")
+            yield (name or "<no name>", a, "list")
     elif isinstance(attrs, dict):
         for name, a in attrs.items():
             yield (name, a if isinstance(a, dict) else {}, "map")
@@ -97,69 +97,69 @@ def check_models(doc):
     models = components.get("x-apigen-models")
     if not isinstance(models, dict) or not models:
         crit(
-            "x-apigen-models ausente o vacio bajo 'components' -> el generador "
-            "producira una entidad placeholder 'Sample' en vez de tus entidades reales."
+            "x-apigen-models missing or empty under 'components' -> the generator "
+            "will produce a placeholder 'Sample' entity instead of your real entities."
         )
         return {}
 
     for entity_name, entity in models.items():
         if not isinstance(entity, dict):
-            crit(f"x-apigen-models.{entity_name} no es un objeto valido.")
+            crit(f"x-apigen-models.{entity_name} is not a valid object.")
             continue
 
         attrs = entity.get("attributes")
         if not attrs:
             warn(
-                f"x-apigen-models.{entity_name}.attributes ausente o vacio -> la "
-                f"clase '{entity_name}' se generara sin propiedades."
+                f"x-apigen-models.{entity_name}.attributes missing or empty -> the "
+                f"class '{entity_name}' will be generated without properties."
             )
             continue
 
         for label, a, style in iter_attributes(attrs):
             if style == "list" and not a.get("name"):
                 crit(
-                    f"x-apigen-models.{entity_name}: un atributo en estilo lista no "
-                    "tiene 'name' -> el generador lanzara NullReferenceException al generar."
+                    f"x-apigen-models.{entity_name}: a list-style attribute has no "
+                    "'name' -> the generator will throw NullReferenceException while generating."
                 )
             if not a.get("type"):
                 crit(
-                    f"x-apigen-models.{entity_name}.{label}: falta 'type' -> el "
-                    "generador lanzara NullReferenceException/InvalidCastException al generar."
+                    f"x-apigen-models.{entity_name}.{label}: missing 'type' -> the "
+                    "generator will throw NullReferenceException/InvalidCastException while generating."
                 )
             for k in DEAD_ATTR_KEYS:
                 if k in a:
                     hint = (
-                        " Usa 'items-type' en vez de 'ref-model'/'is-array' para "
-                        "tipar arrays/relaciones."
+                        " Use 'items-type' instead of 'ref-model'/'is-array' to "
+                        "type arrays/relations."
                         if k in ("ref-model", "is-array", "items-ref-model")
-                        else " Se ignora silenciosamente."
+                        else " It is silently ignored."
                     )
                     info(
-                        f"x-apigen-models.{entity_name}.{label}.{k} esta presente "
-                        f"pero el generador nunca lo lee.{hint}"
+                        f"x-apigen-models.{entity_name}.{label}.{k} is present "
+                        f"but the generator never reads it.{hint}"
                     )
             rp = a.get("relational-persistence") or {}
             if isinstance(rp, dict):
                 for k in DEAD_RELPERSIST_KEYS:
                     if k in rp:
                         hint = (
-                            " Solo 'primary-key: true' importa para autogenerar el id."
+                            " Only 'primary-key: true' matters for autogenerating the id."
                             if k == "autogenerated"
                             else ""
                         )
                         info(
                             f"x-apigen-models.{entity_name}.{label}.relational-persistence.{k} "
-                            f"esta presente pero el generador nunca lo lee.{hint}"
+                            f"is present but the generator never reads it.{hint}"
                         )
                 column = rp.get("column")
                 if column and label and column != label:
                     warn(
-                        f"x-apigen-models.{entity_name}.{label} parece una FK "
-                        f"(column='{column}' distinto del nombre de propiedad). Si la "
-                        "entidad referenciada usa 'attributes' en estilo mapa (no "
-                        "lista), el tipo de la FK caera a 'long?' sin avisar -> usa "
-                        "estilo lista en la entidad referenciada si necesitas el tipo "
-                        "real de su primary key."
+                        f"x-apigen-models.{entity_name}.{label} looks like an FK "
+                        f"(column='{column}' differs from the property name). If the "
+                        "referenced entity uses map-style 'attributes' (not "
+                        "list-style), the FK type will silently fall back to 'long?' -> use "
+                        "list style in the referenced entity if you need the real "
+                        "type of its primary key."
                     )
     return models
 
@@ -179,10 +179,10 @@ def check_operation_ids(doc):
                 continue
             if not operation.get("operationId"):
                 crit(
-                    f"paths.{path_name}.{method} no tiene 'operationId' -> el "
-                    "generador lanzara ArgumentNullException (Humanizer.Pascalize) "
-                    "al generar el controller. 'operationId' es un campo OpenAPI "
-                    "estandar (no x-apigen-*), pero es obligatorio para ApiGen."
+                    f"paths.{path_name}.{method} has no 'operationId' -> the "
+                    "generator will throw ArgumentNullException (Humanizer.Pascalize) "
+                    "while generating the controller. 'operationId' is a standard "
+                    "OpenAPI field (not x-apigen-*), but ApiGen requires it."
                 )
 
 
@@ -220,19 +220,19 @@ def check_tags(doc):
             continue
         if count >= 2:
             crit(
-                f"El tag '{tag_name}' se usa en {count} operaciones pero no esta "
-                "declarado en el arreglo 'tags' de la raiz del documento -> "
-                "ApiGen generara el controller con SOLO UNA de esas operaciones "
-                "(las demas se descartan en silencio, sin error). Agrega "
-                f"'tags: [{{name: {tag_name}}}]' a la raiz del OpenAPI."
+                f"Tag '{tag_name}' is used in {count} operations but is not "
+                "declared in the document's root 'tags' array -> "
+                "ApiGen will generate the controller with ONLY ONE of those operations "
+                "(the rest are silently dropped, no error). Add "
+                f"'tags: [{{name: {tag_name}}}]' to the OpenAPI root."
             )
         else:
             info(
-                f"El tag '{tag_name}' no esta declarado en el arreglo 'tags' de "
-                "la raiz del documento. Con una sola operacion no falla hoy, "
-                "pero si agregas otra operacion con el mismo tag sin declararlo "
-                "primero, esa nueva operacion (o la existente) desaparecera del "
-                "controller generado sin aviso."
+                f"Tag '{tag_name}' is not declared in the document's root "
+                "'tags' array. With a single operation it doesn't fail today, "
+                "but if you add another operation with the same tag without declaring "
+                "it first, that new operation (or the existing one) will disappear from "
+                "the generated controller without warning."
             )
 
 
@@ -250,14 +250,14 @@ def check_mapping_and_binding(doc, models):
         model = mapping.get("model") if isinstance(mapping, dict) else None
         if not model:
             warn(
-                f"components.schemas.{schema_name}.x-apigen-mapping no tiene "
-                "'model' -> no se generara mapeo AutoMapper para este DTO."
+                f"components.schemas.{schema_name}.x-apigen-mapping has no "
+                "'model' -> no AutoMapper mapping will be generated for this DTO."
             )
         elif model not in model_names:
             crit(
                 f"components.schemas.{schema_name}.x-apigen-mapping.model = "
-                f"'{model}' no existe en x-apigen-models -> el mapeo generado "
-                "referenciara una entidad inexistente."
+                f"'{model}' does not exist in x-apigen-models -> the generated mapping "
+                "will reference a nonexistent entity."
             )
 
     paths = doc.get("paths") or {}
@@ -267,18 +267,18 @@ def check_mapping_and_binding(doc, models):
         binding = path_item.get("x-apigen-binding")
         if not binding:
             warn(
-                f"paths.{path_name} no tiene x-apigen-binding -> sus endpoints se "
-                "generaran como stub (NotImplementedException), no como CRUD real."
+                f"paths.{path_name} has no x-apigen-binding -> its endpoints will be "
+                "generated as stubs (NotImplementedException), not as real CRUD."
             )
             continue
         model = binding.get("model") if isinstance(binding, dict) else None
         if not model:
-            warn(f"paths.{path_name}.x-apigen-binding no tiene 'model'.")
+            warn(f"paths.{path_name}.x-apigen-binding has no 'model'.")
         elif model not in model_names:
             crit(
-                f"paths.{path_name}.x-apigen-binding.model = '{model}' no existe "
-                "en x-apigen-models -> el controller generado referenciara un "
-                "servicio inexistente y el proyecto NO compilara."
+                f"paths.{path_name}.x-apigen-binding.model = '{model}' does not exist "
+                "in x-apigen-models -> the generated controller will reference a "
+                "nonexistent service and the project will NOT compile."
             )
 
 
@@ -292,23 +292,23 @@ def section(title, items, icon):
 
 def main():
     if len(sys.argv) < 2:
-        print("Uso: apigen_openapi_check.py <ruta-openapi.yml|yaml|json>", file=sys.stderr)
+        print("Usage: apigen_openapi_check.py <openapi-path.yml|yaml|json>", file=sys.stderr)
         sys.exit(2)
 
     path = sys.argv[1]
     if not os.path.isfile(path):
-        print(f"ERROR: no existe el archivo: {path}", file=sys.stderr)
+        print(f"ERROR: file does not exist: {path}", file=sys.stderr)
         sys.exit(2)
 
     try:
         doc = load_spec(path)
     except Exception as e:
-        print(f"ERROR: no se pudo parsear el OpenAPI ({e}).", file=sys.stderr)
+        print(f"ERROR: could not parse the OpenAPI spec ({e}).", file=sys.stderr)
         sys.exit(2)
 
     if not isinstance(doc, dict):
         print(
-            "ERROR: el documento no parece un OpenAPI valido (raiz no es un objeto).",
+            "ERROR: the document does not look like a valid OpenAPI spec (root is not an object).",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -319,17 +319,17 @@ def main():
     check_tags(doc)
     check_mapping_and_binding(doc, models)
 
-    print(f"Reporte de validacion ApiGen -- {path}")
-    section("CRITICO -- impedira generar o compilar correctamente", CRITICAL, "[X]")
-    section("ADVERTENCIA -- el resultado sera incompleto/degradado", WARNING, "[!]")
-    section("INFORMATIVO -- propiedades ignoradas por el generador", INFO, "[i]")
+    print(f"ApiGen validation report -- {path}")
+    section("CRITICAL -- will prevent generating or compiling correctly", CRITICAL, "[X]")
+    section("WARNING -- result will be incomplete/degraded", WARNING, "[!]")
+    section("INFO -- properties ignored by the generator", INFO, "[i]")
 
     if not CRITICAL and not WARNING and not INFO:
-        print("\n[OK] Sin hallazgos -- el spec usa solo propiedades que el generador realmente lee.")
+        print("\n[OK] No findings -- the spec only uses properties the generator actually reads.")
 
     print(
-        f"\nResumen: {len(CRITICAL)} critico(s), {len(WARNING)} advertencia(s), "
-        f"{len(INFO)} informativo(s)."
+        f"\nSummary: {len(CRITICAL)} critical, {len(WARNING)} warning(s), "
+        f"{len(INFO)} info."
     )
     sys.exit(1 if CRITICAL else 0)
 
